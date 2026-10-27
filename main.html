@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADE</title>
+    <!-- Font Google Inter pour une typographie moderne -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <link rel="stylesheet" type="text/css" href="timetable.css">
+    <!-- Langue et thème : chargé ici pour appliquer le thème avant l'affichage -->
+    <script src="settings.js"></script>
+</head>
+<body>
+    <main class="tt-app" id="app">
+        <!-- 1. Barre d'outils -->
+        <header class="tt-toolbar">
+            <div class="tt-search-wrapper">
+                <div class="tt-search">
+                    <!-- Calques sélectionnés (tags, générés en JS) suivis du champ de saisie -->
+                    <div class="tt-search-field" id="ttSearchField">
+                        <input
+                            type="text"
+                            id="ttSearchInput"
+                            class="tt-search-input"
+                            autocomplete="off"
+                            aria-label="Recherche"
+                            data-i18n-aria="search"
+                            spellcheck="false"
+                        />
+                    </div>
+                    <button type="button" class="tt-search-btn" aria-label="Rechercher" data-i18n-aria="searchAction">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </div>
+
+                <!-- Volet déroulant (rempli par search.js) -->
+                <ul class="dropdown-menu" id="ttDropdownMenu" role="listbox"></ul>
+            </div>
+
+            <!-- « ... » : liste de tous les favoris, visible seulement s'ils ne tiennent pas tous dans la barre -->
+            <div class="tt-popover-anchor" id="allFavoritesAnchor" hidden>
+                <button type="button" class="tt-btn" id="allFavoritesBtn" aria-label="Tous les favoris" data-i18n-aria="allFavorites" data-i18n-title="allFavorites"
+                        aria-haspopup="dialog" aria-expanded="false" aria-controls="allFavoritesPanel">
+                    <i class="fa-solid fa-ellipsis"></i>
+                </button>
+
+                <div class="tt-popover tt-popover--left tt-popover--wide" id="allFavoritesPanel" role="dialog" aria-labelledby="allFavoritesTitle">
+                    <h2 class="tt-popover-title" id="allFavoritesTitle" data-i18n="allFavorites">Tous les favoris</h2>
+                    <ul class="tt-fav-list" id="allFavoritesList"></ul>
+                </div>
+            </div>
+            <!-- Raccourcis des favoris (générés en JS, absents s'il n'y a aucun favori) -->
+            <div class="tt-favorites" id="favorites"></div>
+            <button type="button" class="tt-btn tt-star" id="starBtn"><i class="fa-regular fa-star"></i></button>
+
+            <!-- Paramètres : panneau langue / thème (settings.js) -->
+            <div class="tt-popover-anchor">
+                <button type="button" class="tt-btn" id="settingsBtn" aria-label="Paramètres" data-i18n-aria="settings"
+                        aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsPanel">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+
+                <div class="tt-popover" id="settingsPanel" role="dialog" aria-labelledby="settingsTitle">
+                    <h2 class="tt-popover-title" id="settingsTitle" data-i18n="settings">Paramètres</h2>
+
+                    <div class="tt-setting">
+                        <span class="tt-setting-label" id="languageLabel" data-i18n="language">Langue</span>
+                        <div class="tt-segmented" role="group" aria-labelledby="languageLabel">
+                            <!-- Noms de langue écrits dans leur propre langue : non traduits -->
+                            <button type="button" data-setting="lang" data-value="fr" lang="fr">Français</button>
+                            <button type="button" data-setting="lang" data-value="en" lang="en">English</button>
+                        </div>
+                    </div>
+
+                    <div class="tt-setting">
+                        <span class="tt-setting-label" id="themeLabel" data-i18n="theme">Thème</span>
+                        <div class="tt-segmented" role="group" aria-labelledby="themeLabel">
+                            <button type="button" data-setting="theme" data-value="light">
+                                <i class="fa-solid fa-sun"></i><span data-i18n="light">Clair</span>
+                            </button>
+                            <button type="button" data-setting="theme" data-value="dark">
+                                <i class="fa-solid fa-moon"></i><span data-i18n="dark">Sombre</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emploi du temps par défaut : bascule visuelle seulement (l'enregistrement relèvera du serveur) -->
+            <button type="button" class="tt-btn tt-btn--text tt-toggle" id="defaultBtn" aria-pressed="false" data-i18n="defaultView">Par défaut</button>
+        </header>
+
+        <!-- Titre visible seulement à l'impression (la barre d'outils est masquée) -->
+        <h1 class="tt-print-title" id="printTitle"></h1>
+
+        <!-- 2. Calendrier (généré en JS) : grille horaire (jour / semaine) ou vue mois -->
+        <section class="tt-calendar">
+            <div class="tt-grid" id="timeView">
+                <div class="tt-corner"></div>
+                <div class="tt-days-head" id="daysHead"></div>
+                <div class="tt-hours" id="hoursCol"></div>
+                <div class="tt-days" id="daysBody"></div>
+            </div>
+
+            <div class="tt-month" id="monthView" hidden></div>
+        </section>
+
+        <!-- 3. Navigation -->
+        <footer class="tt-nav">
+            <div class="tt-nav-group">
+                <button type="button" class="tt-btn" id="prevBtn" aria-label="Précédent" data-i18n-aria="previous" data-i18n-title="previous"><i class="fa-solid fa-chevron-left"></i></button>
+                <!-- Export : lien d'abonnement (serveur), fichier .ics, impression -->
+                <div class="tt-popover-anchor">
+                    <button type="button" class="tt-btn" id="exportBtn" aria-label="Exporter" data-i18n-aria="export" data-i18n-title="export"
+                            aria-haspopup="dialog" aria-expanded="false" aria-controls="exportPanel">
+                        <i class="fa-solid fa-file-arrow-up"></i>
+                    </button>
+
+                    <div class="tt-popover tt-popover--up tt-popover--left tt-popover--wide" id="exportPanel" role="dialog" aria-labelledby="exportTitle">
+                        <h2 class="tt-popover-title" id="exportTitle" data-i18n="export">Exporter</h2>
+
+                        <!-- 1. Abonnement : lien à coller dans un agenda (fictif, à fournir par le serveur) -->
+                        <div class="tt-export-option">
+                            <span class="tt-export-label"><i class="fa-solid fa-link"></i><span data-i18n="subscription">Lien d'abonnement</span></span>
+                            <div class="tt-copy-field">
+                                <input type="text" id="subscriptionUrl" readonly aria-label="Lien d'abonnement" data-i18n-aria="subscription">
+                                <button type="button" class="tt-action" id="copyBtn" data-i18n="copy">Copier</button>
+                            </div>
+                            <p class="tt-export-hint" data-i18n="subscriptionHint"></p>
+                        </div>
+
+                        <!-- 2. Fichier .ics : séances affichées, généré dans le navigateur -->
+                        <div class="tt-export-option">
+                            <button type="button" class="tt-action tt-action--block" id="downloadIcsBtn">
+                                <i class="fa-solid fa-download"></i><span data-i18n="downloadIcs">Télécharger (.ics)</span>
+                            </button>
+                            <p class="tt-export-hint" id="downloadIcsHint"></p>
+                        </div>
+
+                        <!-- 3. Impression / PDF de la vue actuelle -->
+                        <div class="tt-export-option">
+                            <button type="button" class="tt-action tt-action--block" id="printBtn">
+                                <i class="fa-solid fa-print"></i><span data-i18n="print">Imprimer / PDF</span>
+                            </button>
+                            <p class="tt-export-hint" data-i18n="printHint"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="tt-range" id="rangeLabel"></p>
+
+            <div class="tt-nav-group">
+                <!-- Calendrier : petit calendrier mensuel pour aller directement à une date -->
+                <div class="tt-popover-anchor">
+                    <button type="button" class="tt-btn" id="calendarBtn" aria-label="Calendrier" data-i18n-aria="calendar" data-i18n-title="calendar"
+                            aria-haspopup="dialog" aria-expanded="false" aria-controls="calendarPanel">
+                        <i class="fa-solid fa-calendar-days"></i>
+                    </button>
+
+                    <div class="tt-popover tt-popover--up" id="calendarPanel" role="dialog" aria-label="Aller à une date" data-i18n-aria="goToDate">
+                        <div class="tt-minical-head">
+                            <button type="button" class="tt-minical-nav" id="miniPrev" aria-label="Mois précédent" data-i18n-aria="previousMonth">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <span class="tt-minical-title" id="miniTitle"></span>
+                            <button type="button" class="tt-minical-nav" id="miniNext" aria-label="Mois suivant" data-i18n-aria="nextMonth">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="tt-minical-grid" id="miniGrid"></div>
+                    </div>
+                </div>
+                <button type="button" class="tt-btn" id="zoomOutBtn" aria-label="Vue plus large" data-i18n-aria="zoomOut" data-i18n-title="zoomOut"><i class="fa-solid fa-minus"></i></button>
+                <button type="button" class="tt-btn" id="zoomInBtn" aria-label="Vue plus détaillée" data-i18n-aria="zoomIn" data-i18n-title="zoomIn"><i class="fa-solid fa-plus"></i></button>
+                <button type="button" class="tt-btn" id="nextBtn" aria-label="Suivant" data-i18n-aria="next" data-i18n-title="next"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+        </footer>
+    </main>
+
+    <script src="timetables.js"></script>
+    <script src="search.js"></script>
+    <script src="favorites.js"></script>
+    <script src="popover.js"></script>
+    <script>
+        /* ==========================================================================
+           DONNÉES DE DÉMONSTRATION
+           ========================================================================== */
+        const DEFAULT_DATE = new Date(2027, 8, 6); // lundi 06/09/2027, début du semestre
+        const VIEWS = ['day', 'week', 'month'];    // de la plus détaillée à la plus large
+        const START_HOUR = 5;  // haut de la grille, non libellé (comme sur la maquette)
+        const END_HOUR = 19;
+        const MONTH_MAX_CHIPS = 3;                 // séances listées par case en vue mois
+
+        // Les séances viennent de timetables.js, les couleurs des calques de favorites.js
+
+        /* ==========================================================================
+           SÉLECTEURS DOM
+           ========================================================================== */
+        const app = document.getElementById('app');
+        const searchInput = document.getElementById('ttSearchInput');
+        const searchField = document.getElementById('ttSearchField');
+        const daysHead = document.getElementById('daysHead');
+        const daysBody = document.getElementById('daysBody');
+        const hoursCol = document.getElementById('hoursCol');
+        const timeView = document.getElementById('timeView');
+        const monthView = document.getElementById('monthView');
+        const rangeLabel = document.getElementById('rangeLabel');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const favoritesBar = document.getElementById('favorites');
+        const starBtn = document.getElementById('starBtn');
+
+        /* État : calques (emplois du temps) affichés, vue et date de référence */
+        let layers = [];
+        let view = 'week';
+        let cursor = new Date(DEFAULT_DATE);
+
+        /* Barre de recherche + volet déroulant (search.js) : choisir une entrée l'ajoute aux calques */
+        const search = initSearch(searchInput, document.getElementById('ttDropdownMenu'), document.querySelector('.tt-search-wrapper'), {
+            onSelect: addLayer,
+            isExcluded: (t) => layers.includes(t)
+        });
+
+        /* ==========================================================================
+           UTILITAIRES DE FORMAT
+           ========================================================================== */
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatDay = (date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+        const formatDate = (date) => `${formatDay(date)}/${pad(date.getFullYear() % 100)}`;
+
+        // "10h15" -> 10.25
+        function toHours(str) {
+            const [h, m] = str.split('h').map(Number);
+            return h + m / 60;
+        }
+
+        function addDays(date, n) {
+            const d = new Date(date);
+            d.setDate(d.getDate() + n);
+            return d;
+        }
+
+        // Lundi de la semaine de la date
+        const startOfWeek = (date) => addDays(date, -((date.getDay() + 6) % 7));
+
+        // Noms de jours / mois dans la langue choisie (première lettre en majuscule)
+        const locale = () => settings.lang === 'en' ? 'en-GB' : 'fr-FR';
+        const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+        const formatPart = (date, options) => capitalize(date.toLocaleDateString(locale(), options));
+
+        /* ==========================================================================
+           GESTION DES CALQUES
+           ========================================================================== */
+        function addLayer(timetable) {
+            if (!layers.includes(timetable)) layers.push(timetable);
+            searchInput.value = '';
+            search.close();
+            searchInput.focus();
+            update();
+        }
+
+        function removeLayer(timetable) {
+            layers = layers.filter(t => t !== timetable);
+            searchInput.focus();
+            update();
+        }
+
+        function update() {
+            renderHourLabels();
+            renderTags();
+            renderCalendar();
+            renderFavorites();
+
+            // L'URL et le titre reflètent les calques, la vue et la date (rechargement / partage)
+            const params = new URLSearchParams();
+            layers.forEach(t => params.append('id', t.id));
+            params.set('view', view);
+            params.set('date', toISODate(cursor));
+            history.replaceState(null, '', `?${params}`);
+            document.title = layers.length ? `${layers.map(layer => layer.label).join(' + ')} - ADE` : t('pageTimetable');
+        }
+
+        // Tags des calques dans la barre de recherche, avant le champ de saisie
+        function renderTags() {
+            searchField.querySelectorAll('.tt-tag').forEach(tag => tag.remove());
+
+            layers.forEach((layer) => {
+                const tag = document.createElement('span');
+                tag.className = 'tt-tag';
+                tag.style.setProperty('--layer-color', layerColor(layer));
+                tag.innerHTML = `
+                    <span class="tt-tag-dot"></span>
+                    <span class="tt-tag-label" title="${escapeHtml(layer.label)}">${escapeHtml(layer.label)}</span>
+                    <button type="button" class="tt-tag-remove" aria-label="${escapeHtml(t('removeLayer', { label: layer.label }))}">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>`;
+                tag.querySelector('.tt-tag-remove').addEventListener('click', () => removeLayer(layer));
+                searchField.insertBefore(tag, searchInput);
+            });
+
+            searchInput.placeholder = t(layers.length ? 'addPlaceholder' : 'searchPlaceholder');
+        }
+
+        // Retour arrière dans un champ vide : retire le dernier calque
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && searchInput.value === '' && layers.length) {
+                removeLayer(layers[layers.length - 1]);
+            }
+        });
+
+        // Clic dans la zone des tags : focus sur le champ
+        searchField.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) searchInput.focus();
+        });
+
+        /* ==========================================================================
+           FAVORIS (favorites.js)
+           L'étoile ajoute l'ensemble affiché aux favoris, ou l'en retire s'il y est déjà.
+           ========================================================================== */
+        const MAX_VISIBLE_FAVORITES = 3;  // au-delà : seuls les premiers raccourcis + le bouton « ... »
+        let favorites = loadFavorites();
+
+        const allFavoritesAnchor = document.getElementById('allFavoritesAnchor');
+        const allFavoritesList = document.getElementById('allFavoritesList');
+        const allFavoritesPopover = initPopover(document.getElementById('allFavoritesBtn'), document.getElementById('allFavoritesPanel'));
+
+        function openFavorite(favLayers) {
+            layers = favLayers;
+            allFavoritesPopover.close();
+            update();
+        }
+
+        const currentFavoriteIndex = () => favorites.findIndex(ids => sameSet(ids, layers));
+
+        starBtn.addEventListener('click', () => {
+            if (!layers.length) return;
+            const index = currentFavoriteIndex();
+            if (index === -1) {
+                favorites.push(layers.map(t => t.id));
+            } else {
+                favorites.splice(index, 1);
+            }
+            saveFavorites(favorites);
+            renderFavorites();
+        });
+
+        function renderFavorites() {
+            const activeIndex = currentFavoriteIndex();
+
+            // Étoile : pleine si l'ensemble affiché est déjà un favori, désactivée sans calque
+            starBtn.disabled = layers.length === 0;
+            exportBtn.disabled = layers.length === 0;
+            starBtn.classList.toggle('is-active', activeIndex !== -1);
+            starBtn.innerHTML = `<i class="${activeIndex !== -1 ? 'fa-solid' : 'fa-regular'} fa-star"></i>`;
+            starBtn.title = t(activeIndex !== -1 ? 'removeFavorite' : 'addFavorite');
+            starBtn.setAttribute('aria-label', starBtn.title);
+
+            // Raccourcis : une pastille par favori, aux couleurs de ses calques (les premiers seulement)
+            favoritesBar.innerHTML = '';
+            favorites.slice(0, MAX_VISIBLE_FAVORITES).forEach((ids, index) => {
+                const btn = createFavoriteButton(ids, openFavorite);
+                btn.classList.toggle('is-active', index === activeIndex);
+                favoritesBar.appendChild(btn);
+            });
+
+            // « ... » : seulement s'il y a plus de favoris que de raccourcis affichés
+            const overflow = favorites.length > MAX_VISIBLE_FAVORITES;
+            allFavoritesAnchor.hidden = !overflow;
+            if (!overflow) allFavoritesPopover.close();
+
+            // Liste complète : pastille + noms des calques, favori affiché mis en évidence
+            allFavoritesList.innerHTML = '';
+            favorites.forEach((ids, index) => {
+                const fav = describeFavorite(ids);
+                const item = document.createElement('li');
+                item.innerHTML = `
+                    <button type="button" class="tt-fav-row">
+                        <span class="tt-fav-swatch" style="background: ${fav.background}"><i class="fa-solid ${fav.icon}"></i></span>
+                        <span class="tt-fav-row-labels">${fav.layers.map(l => `<span>${escapeHtml(l.label)}</span>`).join('')}</span>
+                    </button>`;
+                const row = item.querySelector('button');
+                if (index === activeIndex) row.setAttribute('aria-current', 'true');
+                row.addEventListener('click', () => openFavorite(fav.layers));
+                allFavoritesList.appendChild(item);
+            });
+        }
+
+        /* ==========================================================================
+           NAVIGATION : vue (jour / semaine / mois) et déplacement dans le temps
+           ========================================================================== */
+
+        // « + » : vue plus détaillée (mois → semaine → jour), « - » : vue plus large
+        function zoom(direction) {
+            const index = VIEWS.indexOf(view) + direction;
+            if (index < 0 || index >= VIEWS.length) return;
+            view = VIEWS[index];
+            update();
+        }
+
+        // « < » / « > » : un jour, une semaine ou un mois selon la vue
+        function shift(direction) {
+            if (view === 'day') {
+                cursor = addDays(cursor, direction);
+            } else if (view === 'week') {
+                cursor = addDays(cursor, 7 * direction);
+            } else {
+                // Même jour le mois suivant / précédent, borné au dernier jour du mois
+                const target = new Date(cursor.getFullYear(), cursor.getMonth() + direction, 1);
+                const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+                target.setDate(Math.min(cursor.getDate(), lastDay));
+                cursor = target;
+            }
+            update();
+        }
+
+        zoomInBtn.addEventListener('click', () => zoom(-1));
+        zoomOutBtn.addEventListener('click', () => zoom(1));
+        prevBtn.addEventListener('click', () => shift(-1));
+        nextBtn.addEventListener('click', () => shift(1));
+
+        // Jours affichés. Vue mois : semaines complètes (lundi → dimanche) couvrant le mois
+        function visibleDays() {
+            let first, count;
+            if (view === 'day') {
+                first = cursor;
+                count = 1;
+            } else if (view === 'week') {
+                first = startOfWeek(cursor);
+                count = 7;
+            } else {
+                first = startOfWeek(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
+                const lastOfMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+                count = Math.round((addDays(startOfWeek(lastOfMonth), 7) - first) / 86400000);
+            }
+            return Array.from({ length: count }, (_, i) => addDays(first, i));
+        }
+
+        function rangeText(days) {
+            if (view === 'day') return `${formatPart(cursor, { weekday: 'long' })} ${formatDate(cursor)}`;
+            if (view === 'week') return `${formatDate(days[0])} - ${formatDate(days[days.length - 1])}`;
+            return formatPart(cursor, { month: 'long', year: 'numeric' });
+        }
+
+        /* ==========================================================================
+           MINI-CALENDRIER (bouton calendrier) : aller directement à une date
+           Clic sur un jour : la vue courante (jour / semaine / mois) s'y place.
+           Jours marqués : affichés actuellement, date de référence, jours avec séances.
+           ========================================================================== */
+        const miniGrid = document.getElementById('miniGrid');
+        const miniTitle = document.getElementById('miniTitle');
+        let miniMonth = new Date(cursor.getFullYear(), cursor.getMonth(), 1);  // mois affiché dans le panneau
+
+        const calendarPopover = initPopover(document.getElementById('calendarBtn'), document.getElementById('calendarPanel'), {
+            // À chaque ouverture : revenir au mois de la date affichée
+            onOpen: () => {
+                miniMonth = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+                renderMiniCalendar();
+            }
+        });
+
+        function shiftMiniMonth(direction) {
+            miniMonth = new Date(miniMonth.getFullYear(), miniMonth.getMonth() + direction, 1);
+            renderMiniCalendar();
+        }
+
+        document.getElementById('miniPrev').addEventListener('click', () => shiftMiniMonth(-1));
+        document.getElementById('miniNext').addEventListener('click', () => shiftMiniMonth(1));
+
+        function renderMiniCalendar() {
+            miniTitle.textContent = formatPart(miniMonth, { month: 'long', year: 'numeric' });
+            miniGrid.innerHTML = '';
+
+            // Semaines complètes (lundi → dimanche), toujours 6 lignes pour une hauteur stable
+            const first = startOfWeek(miniMonth);
+            const shown = new Set(visibleDays().map(toISODate));
+            const cursorIso = toISODate(cursor);
+
+            for (let i = 0; i < 7; i++) {
+                const head = document.createElement('span');
+                head.className = 'tt-minical-weekday';
+                head.textContent = formatPart(addDays(first, i), { weekday: 'narrow' });
+                miniGrid.appendChild(head);
+            }
+
+            for (let i = 0; i < 42; i++) {
+                const date = addDays(first, i);
+                const iso = toISODate(date);
+                const hasEvents = layers.some(layer => eventsOn(layer, date).length);
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'tt-minical-day'
+                    + (date.getMonth() !== miniMonth.getMonth() ? ' is-outside' : '')
+                    + (shown.has(iso) ? ' is-shown' : '')
+                    + (hasEvents ? ' has-events' : '');
+                if (iso === cursorIso) btn.setAttribute('aria-current', 'date');
+                btn.textContent = date.getDate();
+                btn.setAttribute('aria-label', formatPart(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+                btn.addEventListener('click', () => {
+                    cursor = date;
+                    calendarPopover.close();
+                    update();
+                });
+                miniGrid.appendChild(btn);
+            }
+        }
+
+        // Langue changée panneau ouvert : retraduire les noms de jours / mois
+        document.addEventListener('settingschange', renderMiniCalendar);
+
+        /* ==========================================================================
+           EXPORT (bouton en bas à gauche)
+           1. Lien d'abonnement : fictif, le vrai flux iCalendar sera fourni par le serveur
+           2. Fichier .ics des séances affichées, généré dans le navigateur
+           3. Impression / PDF de la vue actuelle (toujours en thème clair)
+           ========================================================================== */
+        const exportBtn = document.getElementById('exportBtn');
+        const subscriptionUrl = document.getElementById('subscriptionUrl');
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadIcsHint = document.getElementById('downloadIcsHint');
+
+        const exportPopover = initPopover(exportBtn, document.getElementById('exportPanel'), { onOpen: renderExportPanel });
+
+        function renderExportPanel() {
+            subscriptionUrl.value = `webcal://ade.example.org/abonnement/${layers.map(l => l.id).join('+')}.ics`;
+            downloadIcsHint.textContent = t('downloadIcsHint', { range: rangeText(visibleDays()) });
+        }
+
+        document.addEventListener('settingschange', renderExportPanel);
+
+        // Copier le lien (repli : sélection du texte si le presse-papiers est indisponible)
+        let copyTimer;
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(subscriptionUrl.value);
+            } catch {
+                subscriptionUrl.select();
+                document.execCommand('copy');
+            }
+            copyBtn.textContent = t('copied');
+            clearTimeout(copyTimer);
+            copyTimer = setTimeout(() => copyBtn.textContent = t('copy'), 2000);
+        });
+
+        /* --- Fichier iCalendar (.ics) --- */
+
+        // Texte iCalendar : échapper \ ; , et retours à la ligne
+        const icsText = (str) => str.replace(/[\;,]/g, m => `\\${m}`).replace(/\n/g, '\\n');
+
+        // 2027-09-06 + 10.25 -> "20270906T101500" (heure locale « flottante », sans fuseau)
+        const icsDateTime = (iso, hours) => {
+            const h = Math.floor(hours);
+            const m = Math.round((hours - h) * 60);
+            return `${iso.replace(/-/g, '')}T${pad(h)}${pad(m)}00`;
+        };
+
+        // Lignes de plus de 75 caractères : coupées, la suite commençant par une espace
+        const icsFold = (line) => line.match(/.{1,73}/g).join('\r\n ');
+
+        function buildIcs(events) {
+            const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+            const lines = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//ADE prototype//FR',
+                'CALSCALE:GREGORIAN',
+                'METHOD:PUBLISH',
+                `X-WR-CALNAME:${icsText(layers.map(l => l.label).join(' + '))}`
+            ];
+            events.forEach((ev) => {
+                lines.push(
+                    'BEGIN:VEVENT',
+                    `UID:${ev.iso}-${ev.code.replace(/\s/g, '')}-${ev.start}@ade.example.org`,
+                    `DTSTAMP:${stamp}`,
+                    `DTSTART:${icsDateTime(ev.iso, ev.s)}`,
+                    `DTEND:${icsDateTime(ev.iso, ev.e)}`,
+                    `SUMMARY:${icsText(`${ev.code} - ${ev.title}`)}`,
+                    `LOCATION:${icsText(ev.where)}`,
+                    `DESCRIPTION:${icsText(ev.layers.map(l => l.label).join('\n'))}`,
+                    'END:VEVENT'
+                );
+            });
+            lines.push('END:VCALENDAR');
+            return lines.map(icsFold).join('\r\n') + '\r\n';
+        }
+
+        document.getElementById('downloadIcsBtn').addEventListener('click', () => {
+            const days = visibleDays();
+            const events = collectEvents(days).sort((a, b) => a.iso.localeCompare(b.iso) || a.s - b.s);
+            const blob = new Blob([buildIcs(events)], { type: 'text/calendar;charset=utf-8' });
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `ade-${layers.map(l => l.id).join('-')}-${toISODate(days[0])}_${toISODate(days[days.length - 1])}.ics`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            exportPopover.close();
+        });
+
+        /* --- Impression --- */
+        document.getElementById('printBtn').addEventListener('click', () => {
+            exportPopover.close();
+            window.print();
+        });
+
+        // Impression (bouton ou Ctrl+P) : thème clair le temps de l'impression, titre = calques affichés
+        let themeBeforePrint = null;
+        window.addEventListener('beforeprint', () => {
+            themeBeforePrint = document.documentElement.dataset.theme;
+            document.documentElement.dataset.theme = 'light';
+            document.getElementById('printTitle').textContent = layers.map(l => l.label).join(' + ');
+        });
+        window.addEventListener('afterprint', () => {
+            if (themeBeforePrint) document.documentElement.dataset.theme = themeBeforePrint;
+        });
+
+        /* ==========================================================================
+           RENDU DU CALENDRIER
+           ========================================================================== */
+        function renderCalendar() {
+            const days = visibleDays();
+            const events = collectEvents(days);
+
+            timeView.hidden = view === 'month';
+            monthView.hidden = view !== 'month';
+            if (view === 'month') {
+                renderMonth(days, events);
+            } else {
+                renderTimeView(days, events);
+            }
+
+            rangeLabel.textContent = rangeText(days);
+            zoomInBtn.disabled = view === VIEWS[0];
+            zoomOutBtn.disabled = view === VIEWS[VIEWS.length - 1];
+        }
+
+        // Libellés des heures, créés une fois (texte posé par renderHourLabels selon la langue)
+        function renderHours() {
+            app.style.setProperty('--rows', END_HOUR - START_HOUR);
+
+            for (let h = START_HOUR; h <= END_HOUR; h++) {
+                const label = document.createElement('div');
+                label.className = 'tt-hour';
+                label.style.setProperty('--i', h - START_HOUR);
+                label.dataset.hour = h;
+                hoursCol.appendChild(label);
+            }
+        }
+
+        function renderHourLabels() {
+            hoursCol.querySelectorAll('.tt-hour').forEach((label) => {
+                const h = Number(label.dataset.hour);
+                label.textContent = h === START_HOUR ? '' : formatTime(h);
+            });
+        }
+
+        // Séances de tous les calques sur les jours donnés. Une même séance présente dans
+        // plusieurs calques (même date, horaire et code) n'est affichée qu'une fois, marquée de chaque calque.
+        function collectEvents(days) {
+            const byKey = new Map();
+            days.forEach((date) => {
+                const iso = toISODate(date);
+                layers.forEach((layer) => {
+                    eventsOn(layer, date).forEach((ev) => {
+                        const key = `${iso}|${ev.start}|${ev.end}|${ev.code}`;
+                        if (!byKey.has(key)) {
+                            byKey.set(key, { ...ev, iso, s: toHours(ev.start), e: toHours(ev.end), layers: [] });
+                        }
+                        byKey.get(key).layers.push(layer);
+                    });
+                });
+            });
+            return [...byKey.values()];
+        }
+
+        // Séances qui se chevauchent : réparties côte à côte dans la colonne du jour.
+        // Chaque groupe de séances qui se chevauchent reçoit autant de sous-colonnes que nécessaire.
+        function layoutDay(events) {
+            events.sort((a, b) => a.s - b.s || b.e - a.e);
+
+            let group = [];
+            let groupEnd = -Infinity;
+            let colEnds = []; // fin de la dernière séance de chaque sous-colonne du groupe
+
+            const closeGroup = () => {
+                group.forEach(ev => ev.cols = colEnds.length);
+                group = [];
+                colEnds = [];
+            };
+
+            events.forEach((ev) => {
+                if (group.length && ev.s >= groupEnd) closeGroup();
+
+                let col = colEnds.findIndex(end => end <= ev.s);
+                if (col === -1) col = colEnds.length;
+                colEnds[col] = ev.e;
+
+                ev.col = col;
+                group.push(ev);
+                groupEnd = group.length === 1 ? ev.e : Math.max(groupEnd, ev.e);
+            });
+            closeGroup();
+        }
+
+        // Infobulle d'une séance : détails + calques concernés
+        const eventTooltip = (ev) =>
+            `${ev.code} · ${ev.title}\n${ev.where}\n${formatTime(ev.s)}-${formatTime(ev.e)}\n\n${ev.layers.map(l => l.label).join('\n')}`;
+
+        // Vue jour / semaine : une colonne par jour sur la grille horaire
+        function renderTimeView(days, events) {
+            timeView.style.setProperty('--days', days.length);
+            timeView.dataset.view = view;
+            daysHead.innerHTML = '';
+            daysBody.innerHTML = '';
+
+            const columns = new Map();
+            days.forEach((date) => {
+                const head = document.createElement('div');
+                head.className = 'tt-day-label';
+                head.textContent = view === 'day'
+                    ? `${formatPart(date, { weekday: 'long' })} ${formatDay(date)}`
+                    : formatDay(date);
+                daysHead.appendChild(head);
+
+                const column = document.createElement('div');
+                column.className = 'tt-day';
+                daysBody.appendChild(column);
+                columns.set(toISODate(date), column);
+            });
+
+            columns.forEach((_, iso) => layoutDay(events.filter(ev => ev.iso === iso)));
+
+            events.forEach((ev) => {
+                const el = document.createElement('div');
+                el.className = `tt-event tt-event--${ev.type}${ev.cols > 1 ? ' tt-event--split' : ''}`;
+                el.style.setProperty('--start', ev.s - START_HOUR);
+                el.style.setProperty('--dur', ev.e - ev.s);
+                el.style.setProperty('--col', ev.col);
+                el.style.setProperty('--cols', ev.cols);
+                el.title = eventTooltip(ev);
+
+                // Bandeau en haut de la séance : une couleur par calque concerné
+                const strip = ev.layers
+                    .map(l => `<span class="tt-event-layer" style="--layer-color: ${layerColor(l)}"></span>`)
+                    .join('');
+
+                el.innerHTML = `
+                    <span class="tt-event-layers">${strip}</span>
+                    <strong>${ev.code}</strong>
+                    <span>${ev.title}</span>
+                    <span>${ev.where}</span>
+                    <span>${formatTime(ev.s)}-${formatTime(ev.e)}</span>`;
+                columns.get(ev.iso).appendChild(el);
+            });
+        }
+
+        // Vue mois : une case par jour, avec les premières séances et le nombre de séances restantes
+        function renderMonth(days, events) {
+            monthView.style.setProperty('--weeks', days.length / 7);
+            monthView.innerHTML = '';
+
+            days.slice(0, 7).forEach((date) => {
+                const head = document.createElement('div');
+                head.className = 'tt-month-head';
+                head.textContent = formatPart(date, { weekday: 'short' });
+                monthView.appendChild(head);
+            });
+
+            days.forEach((date) => {
+                const iso = toISODate(date);
+                const dayEvents = events.filter(ev => ev.iso === iso).sort((a, b) => a.s - b.s);
+
+                const cell = document.createElement('div');
+                cell.className = `tt-month-day${date.getMonth() !== cursor.getMonth() ? ' is-outside' : ''}`;
+                cell.innerHTML = `<span class="tt-month-num">${date.getDate()}</span>`;
+
+                dayEvents.slice(0, MONTH_MAX_CHIPS).forEach((ev) => {
+                    const chip = document.createElement('div');
+                    chip.className = `tt-chip tt-event--${ev.type}`;
+                    chip.title = eventTooltip(ev);
+                    const dots = ev.layers
+                        .map(l => `<span class="tt-chip-dot" style="--layer-color: ${layerColor(l)}"></span>`)
+                        .join('');
+                    chip.innerHTML = `${dots}<span class="tt-chip-text">${formatTime(ev.s)} <strong>${ev.code}</strong> ${ev.title}</span>`;
+                    cell.appendChild(chip);
+                });
+
+                if (dayEvents.length > MONTH_MAX_CHIPS) {
+                    const more = document.createElement('span');
+                    more.className = 'tt-month-more';
+                    const hidden = dayEvents.length - MONTH_MAX_CHIPS;
+                    more.textContent = t(hidden === 1 ? 'moreEvent' : 'moreEvents', { n: hidden });
+                    more.title = dayEvents.slice(MONTH_MAX_CHIPS).map(eventTooltip).join('\n\n');
+                    cell.appendChild(more);
+                }
+
+                monthView.appendChild(cell);
+            });
+        }
+
+        /* Initialisation au chargement */
+        window.addEventListener('DOMContentLoaded', () => {
+            renderHours();
+
+            // État transmis dans l'URL (main.html?id=a&id=b&view=week&date=2027-09-06), valeurs inconnues ignorées
+            const params = new URLSearchParams(window.location.search);
+            const ids = params.getAll('id');
+            layers = timetables.filter(tt => ids.includes(tt.id));
+            if (VIEWS.includes(params.get('view'))) view = params.get('view');
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date')) && new Date(`${params.get('date')}T00:00`);
+            if (date && !isNaN(date)) cursor = date;
+            update();
+        });
+
+        /* Paramètres (settings.js) : langue / thème. Changer de langue retraduit les textes générés */
+        initSettingsPanel(document.getElementById('settingsBtn'), document.getElementById('settingsPanel'));
+        document.addEventListener('settingschange', update);
+
+        /* Bouton « Par défaut » : simple bascule on / off, sans autre effet pour l'instant */
+        const defaultBtn = document.getElementById('defaultBtn');
+        defaultBtn.addEventListener('click', () => {
+            defaultBtn.setAttribute('aria-pressed', defaultBtn.getAttribute('aria-pressed') !== 'true');
+        });
+    </script>
+</body>
+</html>

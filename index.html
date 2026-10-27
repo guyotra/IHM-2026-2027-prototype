@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="pageSearch">ADE - Recherche</title>
+    <!-- Font Google Inter pour une typographie moderne -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome pour les icônes (loupe, croix, etc.) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <!-- Langue et thème : chargé ici pour appliquer le thème avant l'affichage -->
+    <script src="settings.js"></script>
+</head>
+<body>
+    <main class="search-container">
+        <!-- 1. Titre Centré -->
+        <header class="title-container">
+            <h1 class="main-title">ADE - Université Grenoble Alpes</h1>
+        </header>
+
+        <!-- 2. Barre de Recherche et Volet Déroulant, raccourcis des favoris à droite -->
+        <div class="search-row">
+            <div class="search-box-wrapper">
+                <div class="search-input-container">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                
+                    <div class="input-relative-wrapper">
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            class="search-input" 
+                            autocomplete="off" 
+                            aria-label="Recherche"
+                            data-i18n-aria="search"
+                            spellcheck="false"
+                        />
+                    
+                        <!-- 4. Carrousel de texte intérieur -->
+                        <div class="text-carousel-wrapper" id="carouselWrapper">
+                            <!-- Généré par JS ou HTML statique -->
+                        </div>
+                    </div>
+
+                    <button type="button" class="clear-btn" id="clearBtn" title="Effacer la recherche" data-i18n-title="clearSearch">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- 3. Volet Déroulant (Dropdown) -->
+                <ul class="dropdown-menu" id="dropdownMenu" role="listbox">
+                    <!-- Les résultats filtrés seront injectés ici en JS -->
+                </ul>
+            </div>
+
+            <!-- Raccourcis des favoris (générés en JS, absents s'il n'y a aucun favori) -->
+            <div class="tt-favorites" id="favorites"></div>
+        </div>
+
+        <!-- Astuce de navigation clavier -->
+        <div class="keyboard-hint">
+            <span><span class="kbd">↑</span> <span class="kbd">↓</span> <span data-i18n="hintNavigate">Naviguer</span></span>
+            <span><span class="kbd" data-i18n="hintEnter">Entrée</span> <span data-i18n="hintSelect">Sélectionner</span></span>
+            <span><span class="kbd" data-i18n="hintEscape">Échap</span> <span data-i18n="hintClose">Fermer</span></span>
+        </div>
+    </main>
+
+    <script src="timetables.js"></script>
+    <script src="search.js"></script>
+    <script src="favorites.js"></script>
+    <script>
+        const carouselSuggestions = [
+            "IESE5",
+            "Mounier",
+            "B102"
+        ];
+
+        /* ==========================================================================
+           SÉLECTEURS DOM
+           ========================================================================== */
+        const searchInput = document.getElementById('searchInput');
+        const carouselWrapper = document.getElementById('carouselWrapper');
+        const dropdownMenu = document.getElementById('dropdownMenu');
+        const clearBtn = document.getElementById('clearBtn');
+
+        /* Barre de recherche + volet déroulant (search.js) */
+        const search = initSearch(searchInput, dropdownMenu, document.querySelector('.search-box-wrapper'));
+
+        /* État de l'application */
+        let currentCarouselIndex = 0;
+        let carouselInterval = null;
+
+        /* ==========================================================================
+           GESTION DU CARROUSEL DE TEXTE
+           ========================================================================== */
+        function initCarousel() {
+            // Créer les éléments HTML pour chaque suggestion du carrousel
+            carouselSuggestions.forEach((text, index) => {
+                const item = document.createElement('span');
+                item.className = `carousel-item ${index === 0 ? 'active' : ''}`;
+                item.textContent = text;
+                carouselWrapper.appendChild(item);
+            });
+
+            startCarousel();
+        }
+
+        function startCarousel() {
+            if (carouselInterval) return;
+            carouselInterval = setInterval(() => {
+                const items = carouselWrapper.querySelectorAll('.carousel-item');
+                if (items.length === 0) return;
+
+                // Ancien élément vers le haut
+                items[currentCarouselIndex].classList.remove('active');
+                items[currentCarouselIndex].classList.add('exit');
+
+                const prevIndex = currentCarouselIndex;
+                currentCarouselIndex = (currentCarouselIndex + 1) % items.length;
+
+                // Nouvel élément depuis le bas
+                items[currentCarouselIndex].classList.remove('exit');
+                items[currentCarouselIndex].classList.add('active');
+
+                // Réinitialiser la classe exit après la transition
+                setTimeout(() => {
+                    items[prevIndex].classList.remove('exit');
+                }, 400);
+
+            }, 2800);
+        }
+
+        function stopCarousel() {
+            clearInterval(carouselInterval);
+            carouselInterval = null;
+        }
+
+        function updateCarouselVisibility() {
+            // Masquer le carrousel si le champ contient du texte
+            if (searchInput.value.trim() !== '') {
+                carouselWrapper.style.display = 'none';
+                stopCarousel();
+            } else {
+                carouselWrapper.style.display = 'flex';
+                startCarousel();
+            }
+        }
+
+        /* ==========================================================================
+           ÉVÉNEMENTIEL (EVENT LISTENERS)
+           ========================================================================== */
+
+        // Saisie utilisateur dans le champ (le filtrage est géré par search.js)
+        searchInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+
+            // Affichage du bouton d'effacement
+            if (value.length > 0) {
+                clearBtn.classList.add('visible');
+            } else {
+                clearBtn.classList.remove('visible');
+            }
+
+            updateCarouselVisibility();
+        });
+
+        // Bouton d'effacement (Croix)
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            clearBtn.classList.remove('visible');
+            updateCarouselVisibility();
+            search.close();
+            searchInput.focus();
+        });
+
+        /* ==========================================================================
+           RACCOURCIS DES FAVORIS (favorites.js) : ouvrent l'écran B avec leurs calques
+           ========================================================================== */
+        function renderFavorites() {
+            const favoritesBar = document.getElementById('favorites');
+            loadFavorites().forEach((ids) => {
+                favoritesBar.appendChild(createFavoriteButton(ids, (favLayers) => openTimetable(...favLayers)));
+            });
+        }
+
+        /* Initialisation au chargement */
+        window.addEventListener('DOMContentLoaded', () => {
+            initCarousel();
+            renderFavorites();
+        });
+    </script>
+</body>
+</html>

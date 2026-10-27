@@ -1,0 +1,905 @@
+/* ==========================================================================
+   PAGE EMPLOI DU TEMPS (main.html)
+   S'appuie sur les variables, le reset et le body définis dans style.css
+   ========================================================================== */
+.tt-app {
+    --rows: 14;                 /* nombre d'heures affichées (surchargé en JS) */
+    --hour-h: clamp(28px, calc((100vh - 240px) / var(--rows)), 46px);
+    --hours-w: 84px;            /* colonne des heures : libellé + graduation */
+    --tick-w: 30px;
+
+    width: 100%;
+    max-width: 1000px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ==========================================================================
+   1. BARRE D'OUTILS
+   ========================================================================== */
+.tt-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.tt-search-wrapper {
+    flex: 1 1 240px;
+    position: relative;
+}
+
+/* Volet déroulant (styles de base dans style.css) : plus large que la pilule pour les longs libellés */
+.tt-search-wrapper .dropdown-menu {
+    width: max(100%, min(480px, 100vw - 40px));
+}
+
+/* La pilule grandit en hauteur si les tags ne tiennent pas sur une ligne */
+.tt-search {
+    display: flex;
+    align-items: center;
+    min-height: var(--btn-size);
+    padding-left: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: calc(var(--btn-size) / 2);
+    box-shadow: var(--btn-shadow);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+}
+
+.tt-search:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: var(--btn-shadow), 0 0 20px var(--accent-glow);
+}
+
+/* Zone des tags + champ de saisie */
+.tt-search-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    cursor: text;
+}
+
+.tt-search-input {
+    flex: 1 0 100px;
+    min-width: 100px;
+    height: 32px;
+    padding-left: 8px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.tt-search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.tt-search-btn {
+    flex-shrink: 0;
+    width: calc(var(--btn-size) - 2px);
+    height: calc(var(--btn-size) - 2px);
+    border: none;
+    border-radius: 50%;
+    background: var(--subtle-bg);
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: color var(--transition-speed), background-color var(--transition-speed);
+}
+
+.tt-search-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.tt-search-btn:hover {
+    background: var(--hover-bg);
+    color: var(--accent-color);
+}
+
+/* Tag d'un calque sélectionné : pastille de couleur, nom, bouton de retrait */
+.tt-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    height: 32px;
+    padding: 0 3px 0 10px;
+    background: var(--subtle-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: default;
+}
+
+.tt-tag-dot {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--layer-color);
+}
+
+.tt-tag-label {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tt-tag-remove {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color var(--transition-speed), background-color var(--transition-speed);
+}
+
+.tt-tag-remove:hover {
+    background: var(--subtle-bg-hover);
+    color: var(--text-primary);
+}
+
+.tt-tag-remove:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+}
+
+/* Bouton bascule (« Par défaut ») : rempli de la couleur d'accent quand il est activé */
+.tt-toggle[aria-pressed="true"],
+.tt-toggle[aria-pressed="true"]:hover {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #fff;
+}
+
+/* Étoile : pleine quand l'ensemble affiché est un favori, désactivée sans calque */
+.tt-star.is-active,
+.tt-star.is-active:hover {
+    color: #facc15;
+}
+
+/* Panneau des paramètres : s'ouvre sous le bouton engrenage */
+/* Bouton + panneau flottant attaché (paramètres, calendrier) */
+.tt-popover-anchor {
+    position: relative;
+}
+
+.tt-popover {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 200;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-main);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: opacity var(--transition-speed) ease, transform var(--transition-speed) ease, visibility var(--transition-speed);
+}
+
+/* Panneau aligné sur le bord gauche de son bouton (boutons à gauche de la barre) */
+.tt-popover--left {
+    right: auto;
+    left: 0;
+}
+
+/* Panneau plus large (listes de noms longs) */
+.tt-popover--wide {
+    width: 360px;
+}
+
+/* Panneau ouvert vers le haut (boutons du bas de page) */
+.tt-popover--up {
+    top: auto;
+    bottom: calc(100% + 10px);
+    transform: translateY(10px);
+}
+
+.tt-popover.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.tt-popover-title {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.tt-setting {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tt-setting-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Choix exclusif (deux options côte à côte), l'option active est en aria-pressed="true" */
+.tt-segmented {
+    display: flex;
+    padding: 3px;
+    background: var(--subtle-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+}
+
+.tt-segmented button {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color var(--transition-speed), background-color var(--transition-speed);
+}
+
+.tt-segmented button:hover {
+    color: var(--text-primary);
+}
+
+.tt-segmented button[aria-pressed="true"] {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+.tt-segmented button:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Liste de tous les favoris (bouton « ... »), défilante si elle est longue */
+.tt-fav-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 320px;
+    margin: 0 -8px;
+    padding: 0 8px;
+    overflow-y: auto;
+}
+
+.tt-fav-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border: none;
+    border-radius: var(--radius-item);
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--transition-speed);
+}
+
+.tt-fav-row:hover {
+    background: var(--hover-bg);
+}
+
+/* Favori correspondant aux calques affichés */
+.tt-fav-row[aria-current="true"] {
+    background: var(--active-bg);
+    box-shadow: inset 3px 0 0 var(--accent-color);
+}
+
+.tt-fav-row:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+}
+
+.tt-fav-swatch {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: #0f172a;
+    font-size: 0.85rem;
+}
+
+/* Un nom de calque par ligne */
+.tt-fav-row-labels {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.85rem;
+    line-height: 1.35;
+}
+
+.tt-fav-row-labels span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Panneau d'export : une option par bloc (libellé, commande, explication) */
+.tt-export-option {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tt-export-option + .tt-export-option {
+    padding-top: 14px;
+    border-top: 1px solid var(--card-border);
+}
+
+.tt-export-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.tt-export-hint {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+/* Champ en lecture seule + bouton Copier */
+.tt-copy-field {
+    display: flex;
+    gap: 6px;
+}
+
+.tt-copy-field input {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    padding: 0 10px;
+    background: var(--subtle-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-item);
+    color: var(--text-primary);
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    outline: none;
+}
+
+.tt-copy-field input:focus {
+    border-color: var(--accent-color);
+}
+
+/* Bouton d'action secondaire (contour couleur d'accent) */
+.tt-action {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 14px;
+    background: transparent;
+    border: 1px solid var(--accent-color);
+    border-radius: 999px;
+    color: var(--accent-color);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color var(--transition-speed), background-color var(--transition-speed);
+}
+
+.tt-action:hover {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+.tt-action:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.tt-action--block {
+    width: 100%;
+}
+
+/* Titre d'impression : masqué à l'écran */
+.tt-print-title {
+    display: none;
+}
+
+/* Mini-calendrier : en-tête (mois + flèches) et grille des jours */
+.tt-minical-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.tt-minical-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.tt-minical-nav {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: color var(--transition-speed), background-color var(--transition-speed);
+}
+
+.tt-minical-nav:hover {
+    background: var(--subtle-bg-hover);
+    color: var(--text-primary);
+}
+
+.tt-minical-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.tt-minical-weekday {
+    padding-bottom: 4px;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.tt-minical-day {
+    position: relative;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: background-color var(--transition-speed);
+}
+
+.tt-minical-day:hover {
+    background: var(--hover-bg);
+}
+
+/* Jours des mois voisins */
+.tt-minical-day.is-outside {
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+/* Jours actuellement affichés dans le calendrier principal */
+.tt-minical-day.is-shown {
+    background: var(--active-bg);
+}
+
+/* Date de référence de la vue */
+.tt-minical-day[aria-current="date"] {
+    background: var(--accent-color);
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Petit point sous les jours qui ont des séances */
+.tt-minical-day.has-events::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.7;
+    transform: translateX(-50%);
+}
+
+.tt-minical-day:focus-visible,
+.tt-minical-nav:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+}
+
+/* ==========================================================================
+   2. GRILLE DE LA SEMAINE
+   ========================================================================== */
+.tt-calendar {
+    overflow-x: auto;
+    padding-bottom: 10px;   /* laisse la place au libellé de la dernière heure */
+}
+
+.tt-grid {
+    display: grid;
+    grid-template-columns: var(--hours-w) 1fr;
+    min-width: 640px;
+}
+
+/* Une colonne par jour affiché (--days : 1 en vue jour, 7 en vue semaine) */
+.tt-days-head,
+.tt-days {
+    display: grid;
+    grid-template-columns: repeat(var(--days, 7), minmax(0, 1fr));
+}
+
+.tt-day-label {
+    padding: 8px 0;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.tt-day-label,
+.tt-day {
+    border-left: 1px solid var(--line-strong);
+}
+
+.tt-day-label:last-child,
+.tt-day:last-child {
+    border-right: 1px solid var(--line-strong);
+}
+
+/* Fond de la grille : une ligne horizontale par heure, première et dernière comprises */
+.tt-days {
+    height: calc(var(--rows) * var(--hour-h) + 1px);
+    background-color: var(--grid-bg);
+    background-image: repeating-linear-gradient(to bottom,
+        var(--line) 0, var(--line) 1px,
+        transparent 1px, transparent var(--hour-h));
+    box-shadow: inset 0 14px 14px -12px var(--grid-inset);
+}
+
+.tt-hours {
+    position: relative;
+}
+
+.tt-hour {
+    position: absolute;
+    right: 0;
+    top: calc(var(--i) * var(--hour-h) + 0.5px);
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* Graduation qui prolonge la ligne de l'heure à gauche de la grille */
+.tt-hour::after {
+    content: "";
+    width: var(--tick-w);
+    height: 1px;
+    background: var(--line-strong);
+}
+
+.tt-day {
+    position: relative;
+}
+
+/* Séance : positionnée à partir de --start et --dur (en heures),
+   et de --col / --cols quand plusieurs séances se chevauchent */
+.tt-event {
+    --ev-color: #22c55e;
+    position: absolute;
+    left: calc(var(--col, 0) * 100% / var(--cols, 1) + 2px);
+    width: calc(100% / var(--cols, 1) - 4px);
+    top: calc(var(--start) * var(--hour-h) + 2px);
+    height: calc(var(--dur) * var(--hour-h) - 3px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: safe center;   /* si le texte déborde, on coupe en bas, pas en haut */
+    padding: 6px 4px;
+    overflow: hidden;
+    background: var(--ev-color);
+    border-radius: 14px;
+    box-shadow: var(--event-shadow);
+    color: #0f172a;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    text-align: center;
+}
+
+.tt-event strong {
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+/* Vue jour : colonnes larges, texte plus grand */
+.tt-grid[data-view="day"] .tt-event {
+    font-size: 0.85rem;
+}
+
+.tt-grid[data-view="day"] .tt-event strong {
+    font-size: 0.95rem;
+}
+
+/* Séance partageant la colonne avec d'autres : texte plus compact */
+.tt-event--split {
+    padding: 8px 2px 4px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    hyphens: auto;              /* césure selon la langue de la page, sinon coupe où il faut */
+    overflow-wrap: anywhere;
+}
+
+.tt-event--split strong {
+    font-size: 0.7rem;
+}
+
+/* Bandeau des calques en haut de la séance (une couleur par calque) */
+.tt-event-layers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    display: flex;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.35);
+}
+
+.tt-event-layer {
+    flex: 1;
+    background: var(--layer-color);
+}
+
+/* Couleur par type de séance (aussi utilisée par les pastilles de la vue mois) */
+.tt-event--cm { --ev-color: #60a5fa; }
+.tt-event--td { --ev-color: #fbbf24; }
+.tt-event--tp { --ev-color: #a78bfa; }
+.tt-event--pg { --ev-color: #22c55e; }
+.tt-event--ex { --ev-color: #fb7185; }
+.tt-event--re { --ev-color: #cbd5e1; }
+
+/* ==========================================================================
+   2 bis. VUE MOIS
+   Même hauteur que la grille horaire ; une case par jour, semaines complètes
+   ========================================================================== */
+.tt-month[hidden],
+.tt-grid[hidden] {
+    display: none;
+}
+
+.tt-month {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: auto repeat(var(--weeks, 5), minmax(0, 1fr));
+    height: calc(var(--rows) * var(--hour-h) + 38px);
+    min-width: 640px;
+    background: var(--grid-bg);
+    border-top: 1px solid var(--line-strong);
+    border-left: 1px solid var(--line-strong);
+}
+
+.tt-month-head,
+.tt-month-day {
+    border-right: 1px solid var(--line-strong);
+    border-bottom: 1px solid var(--line-strong);
+}
+
+.tt-month-head {
+    padding: 8px 0;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.tt-month-day {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px;
+    overflow: hidden;
+}
+
+/* Jours des mois voisins (pour compléter les semaines) */
+.tt-month-day.is-outside {
+    opacity: 0.4;
+}
+
+.tt-month-num {
+    padding: 0 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+/* Séance en vue mois : heure, code, intitulé, pastilles des calques */
+.tt-chip {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 2px 6px;
+    background: var(--ev-color);
+    border-radius: 6px;
+    color: #0f172a;
+    font-size: 0.7rem;
+    line-height: 1.4;
+}
+
+.tt-chip-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tt-chip-dot {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--layer-color);
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.6);
+}
+
+.tt-month-more {
+    padding: 0 6px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   3. NAVIGATION (BAS DE PAGE)
+   ========================================================================== */
+.tt-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tt-nav-group {
+    display: flex;
+    gap: 12px;
+}
+
+.tt-range {
+    flex: 1;
+    text-align: center;
+    font-size: 1.6rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   4. PETITS ÉCRANS
+   ========================================================================== */
+@media (max-width: 640px) {
+    .tt-app {
+        --btn-size: 44px;
+    }
+
+    .tt-nav {
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .tt-range {
+        order: -1;
+        flex-basis: 100%;
+        font-size: 1.25rem;
+    }
+}
+
+/* ==========================================================================
+   5. IMPRESSION / PDF (bouton Export ou Ctrl+P)
+   Seuls le titre (calques), la période et le calendrier sont imprimés ;
+   le thème clair est imposé en JS le temps de l'impression.
+   ========================================================================== */
+@media print {
+    @page {
+        size: landscape;
+        margin: 1cm;
+    }
+
+    body {
+        display: block;
+        min-height: 0;
+        padding: 0;
+        background: #fff;
+    }
+
+    /* Paysage A4 : environ 17 cm de haut sous le titre */
+    .tt-app {
+        --hour-h: 1cm;
+        max-width: none;
+        gap: 8px;
+    }
+
+    .tt-month {
+        height: 16cm;
+    }
+
+    .tt-toolbar,
+    .tt-nav-group,
+    .tt-popover {
+        display: none !important;
+    }
+
+    .tt-print-title {
+        order: -2;
+        display: block;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    /* La période, imprimée sous le titre */
+    .tt-nav {
+        order: -1;
+    }
+
+    .tt-range {
+        text-align: left;
+        font-size: 1rem;
+    }
+
+    .tt-calendar {
+        overflow: visible;
+    }
+
+    .tt-grid,
+    .tt-month {
+        min-width: 0;
+    }
+
+    /* Garder les couleurs des séances (les navigateurs suppriment les fonds par défaut) */
+    .tt-event,
+    .tt-chip,
+    .tt-event-layer,
+    .tt-chip-dot,
+    .tt-days,
+    .tt-month {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        box-shadow: none;
+    }
+}
