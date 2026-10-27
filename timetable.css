@@ -443,6 +443,113 @@
     display: none;
 }
 
+/* Panneau centré dans la fenêtre (détails des séances) */
+.tt-popover--center {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    z-index: 300;
+    width: 360px;
+    max-height: 80vh;
+    overflow-y: auto;
+    transform: translate(-50%, calc(-50% + 10px));
+}
+
+.tt-popover--center.open {
+    transform: translate(-50%, -50%);
+}
+
+/* Détails des séances : en-tête (date + fermer) et une carte par séance */
+.tt-details-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.tt-details-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tt-details-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px 10px 18px;
+    overflow: hidden;
+    background: var(--subtle-bg);
+    border-radius: var(--radius-item);
+    font-size: 0.9rem;
+}
+
+/* Bande à gauche : couleur du type de séance */
+.tt-details-item::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 6px;
+    background: var(--ev-color);
+}
+
+.tt-details-time {
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+}
+
+.tt-details-where {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.tt-details-layers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.tt-details-layers > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tt-details-empty {
+    padding: 8px 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Séances et jours (vue mois) : cliquables pour afficher les détails */
+.tt-event,
+.tt-month-day {
+    cursor: pointer;
+}
+
+.tt-month-day:hover {
+    background: var(--subtle-bg);
+}
+
+.tt-event:focus-visible,
+.tt-month-day:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+}
+
 /* Mini-calendrier : en-tête (mois + flèches) et grille des jours */
 .tt-minical-head {
     display: flex;
@@ -814,21 +921,199 @@
    4. PETITS ÉCRANS
    ========================================================================== */
 @media (max-width: 640px) {
-    .tt-app {
-        --btn-size: 44px;
+    /* Barre d'outils en haut, navigation en bas, même si le contenu est court */
+    body {
+        align-items: flex-start;
+        padding: 10px 10px 0;
     }
 
+    .tt-app {
+        --btn-size: 40px;
+        --hours-w: 46px;
+        --tick-w: 6px;
+        --hour-h: 40px;
+        min-height: calc(100dvh - 10px);
+        gap: 10px;
+    }
+
+    .tt-calendar {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* --- Barre d'outils : recherche sur toute la largeur, boutons sur une ligne en dessous --- */
+    .tt-toolbar {
+        gap: 8px;
+    }
+
+    .tt-search-wrapper {
+        flex-basis: 100%;
+    }
+
+    .tt-search-wrapper .dropdown-menu {
+        width: 100%;
+    }
+
+    .tt-search-field {
+        padding: 4px 0;
+    }
+
+    .tt-tag {
+        height: 28px;
+        font-size: 0.8rem;
+    }
+
+    .tt-tag-label {
+        max-width: 110px;
+    }
+
+    .tt-search-input {
+        flex-basis: 70px;
+        min-width: 70px;
+    }
+
+    .tt-btn {
+        font-size: 1rem;
+    }
+
+    .tt-btn--text {
+        padding: 0 14px;
+        font-size: 0.85rem;
+    }
+
+    .tt-favorites {
+        gap: 8px;
+    }
+
+    /* --- Grille : tient dans l'écran, sans défilement horizontal --- */
+    .tt-calendar {
+        overflow-x: visible;
+    }
+
+    .tt-grid,
+    .tt-month {
+        min-width: 0;
+    }
+
+    .tt-hour {
+        gap: 4px;
+        font-size: 0.7rem;
+    }
+
+    .tt-day-label {
+        font-size: 0.8rem;
+    }
+
+    /* Vue semaine : colonnes étroites, seul le code de la séance est affiché */
+    .tt-grid[data-view="week"] .tt-event {
+        padding: 6px 1px 2px;
+        border-radius: 8px;
+        font-size: 0.6rem;
+        hyphens: none;
+        overflow-wrap: normal;
+        word-break: normal;
+    }
+
+    .tt-grid[data-view="week"] .tt-event > span:not(.tt-event-layers) {
+        display: none;
+    }
+
+    .tt-grid[data-view="week"] .tt-event strong {
+        font-size: 0.65rem;
+        line-height: 1.2;
+    }
+
+    /* Vue mois : un point par séance (couleur du type) au lieu des étiquettes */
+    /* Lignes d'au moins 64 px, étirées pour remplir l'écran jusqu'à la navigation */
+    .tt-month {
+        flex: 1;
+        height: auto;
+        grid-template-rows: auto repeat(var(--weeks, 5), minmax(64px, 1fr));
+    }
+
+    .tt-month-head {
+        padding: 6px 0;
+        font-size: 0.75rem;
+    }
+
+    .tt-month-day {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        gap: 3px;
+        padding: 3px;
+    }
+
+    .tt-month-num {
+        flex-basis: 100%;
+        padding: 0 2px;
+        font-size: 0.75rem;
+    }
+
+    .tt-chip {
+        width: 9px;
+        height: 9px;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .tt-chip > * {
+        display: none;
+    }
+
+    .tt-month-more {
+        padding: 0;
+        font-size: 0.6rem;
+        line-height: 9px;
+    }
+
+    /* --- Navigation : collée en bas de l'écran, période au-dessus des boutons --- */
     .tt-nav {
+        position: sticky;
+        bottom: 0;
+        z-index: 50;
         flex-wrap: wrap;
         justify-content: space-between;
+        gap: 6px;
+        margin: 0 -10px;
+        padding: 8px 10px 10px;
+        background: var(--page-bg);
+        border-top: 1px solid var(--card-border);
+    }
+
+    .tt-nav-group {
+        gap: 8px;
     }
 
     .tt-range {
         order: -1;
         flex-basis: 100%;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
+    }
+
+    /* --- Panneaux flottants : en bas de l'écran, sur toute la largeur --- */
+    .tt-popover,
+    .tt-popover--up,
+    .tt-popover--left,
+    .tt-popover--wide,
+    .tt-popover--center {
+        position: fixed;
+        top: auto;
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        max-height: 75vh;
+        overflow-y: auto;
+        transform: translateY(20px);
+    }
+
+    .tt-popover.open {
+        transform: translateY(0);
     }
 }
+
 
 /* ==========================================================================
    5. IMPRESSION / PDF (bouton Export ou Ctrl+P)

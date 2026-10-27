@@ -25,6 +25,7 @@
             --scrollbar: rgba(255, 255, 255, 0.15);
             --scrollbar-hover: rgba(255, 255, 255, 0.3);
             --ring-gap: #0f172a;                          /* espace entre un favori actif et son anneau */
+            --page-bg: #0f172a;                           /* fond uni (barres collées au bord de l'écran) */
             --line: rgba(255, 255, 255, 0.1);             /* lignes des heures */
             --line-strong: rgba(255, 255, 255, 0.28);     /* séparations des jours */
             --grid-bg: rgba(15, 23, 42, 0.5);
@@ -54,6 +55,7 @@
             --scrollbar: rgba(15, 23, 42, 0.15);
             --scrollbar-hover: rgba(15, 23, 42, 0.3);
             --ring-gap: #f8fafc;
+            --page-bg: #f1f5f9;
             --line: rgba(15, 23, 42, 0.08);
             --line-strong: rgba(15, 23, 42, 0.22);
             --grid-bg: rgba(255, 255, 255, 0.7);
@@ -431,6 +433,19 @@
     top: 0;
     left: calc(100% + 24px);
     flex-direction: column;
+}
+
+/* Téléphone / écran tactile : pas de clavier, l'aide clavier ne sert à rien */
+@media (max-width: 640px), (pointer: coarse) {
+    .keyboard-hint {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .main-title {
+        font-size: 1.8rem;
+    }
 }
 
 /* Écran étroit : pas de place à droite, les raccourcis passent sous la barre */

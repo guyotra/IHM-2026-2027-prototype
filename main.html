@@ -181,6 +181,17 @@
                 <button type="button" class="tt-btn" id="nextBtn" aria-label="Suivant" data-i18n-aria="next" data-i18n-title="next"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
         </footer>
+
+        <!-- Détails des séances : clic / toucher sur une séance, ou sur un jour en vue mois -->
+        <div class="tt-popover tt-popover--center" id="detailsPanel" role="dialog" aria-labelledby="detailsTitle">
+            <div class="tt-details-head">
+                <h2 class="tt-popover-title" id="detailsTitle"></h2>
+                <button type="button" class="tt-minical-nav" id="detailsClose" aria-label="Fermer" data-i18n-aria="close" data-i18n-title="close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <ul class="tt-details-list" id="detailsList"></ul>
+        </div>
     </main>
 
     <script src="timetables.js"></script>
@@ -623,9 +634,82 @@
         });
 
         /* ==========================================================================
+           DÉTAILS DES SÉANCES
+           Clic / toucher (ou Entrée / Espace au clavier) :
+           - sur une séance (vues jour et semaine) : ses détails
+           - sur un jour (vue mois) : toutes les séances du jour
+           Fermeture : bouton ×, clic à l'extérieur, Échap (le focus revient à l'élément d'origine).
+           ========================================================================== */
+        const detailsPanel = document.getElementById('detailsPanel');
+        const detailsTitle = document.getElementById('detailsTitle');
+        const detailsList = document.getElementById('detailsList');
+        let detailsOpener = null;
+
+        function openDetails(date, events, opener) {
+            detailsTitle.textContent = formatPart(date, { weekday: 'long', day: 'numeric', month: 'long' });
+            detailsList.innerHTML = '';
+
+            if (!events.length) {
+                detailsList.innerHTML = `<li class="tt-details-empty">${escapeHtml(t('noEvents'))}</li>`;
+            }
+
+            events.forEach((ev) => {
+                const item = document.createElement('li');
+                item.className = `tt-details-item tt-event--${ev.type}`;
+                item.innerHTML = `
+                    <span class="tt-details-time">${formatTime(ev.s)} – ${formatTime(ev.e)}</span>
+                    <span class="tt-details-name"><strong>${escapeHtml(ev.code)}</strong> ${escapeHtml(ev.title)}</span>
+                    <span class="tt-details-where"><i class="fa-solid fa-location-dot"></i>${escapeHtml(ev.where)}</span>
+                    <span class="tt-details-layers">${ev.layers.map(l => `
+                        <span><span class="tt-tag-dot" style="--layer-color: ${layerColor(l)}"></span>${escapeHtml(l.label)}</span>`).join('')}
+                    </span>`;
+                detailsList.appendChild(item);
+            });
+
+            detailsOpener = opener;
+            detailsPanel.classList.add('open');
+            document.getElementById('detailsClose').focus({ preventScroll: true });
+        }
+
+        function closeDetails({ restoreFocus = true } = {}) {
+            if (!detailsPanel.classList.contains('open')) return;
+            detailsPanel.classList.remove('open');
+            if (restoreFocus && detailsOpener && detailsOpener.isConnected) detailsOpener.focus({ preventScroll: true });
+            detailsOpener = null;
+        }
+
+        // Rend un élément du calendrier activable (souris, toucher, clavier)
+        function makeOpenable(el, label, open) {
+            el.tabIndex = 0;
+            el.setAttribute('role', 'button');
+            el.setAttribute('aria-label', label);
+            el.addEventListener('click', open);
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    open();
+                }
+            });
+        }
+
+        document.getElementById('detailsClose').addEventListener('click', () => closeDetails());
+
+        // Clic à l'extérieur (un clic sur une autre séance / un autre jour change simplement le contenu)
+        document.addEventListener('click', (e) => {
+            const path = e.composedPath();
+            const onOpener = path.some(el => el.classList && (el.classList.contains('tt-event') || el.classList.contains('tt-month-day')));
+            if (!path.includes(detailsPanel) && !onOpener) closeDetails({ restoreFocus: false });
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeDetails();
+        });
+
+        /* ==========================================================================
            RENDU DU CALENDRIER
            ========================================================================== */
         function renderCalendar() {
+            closeDetails({ restoreFocus: false });  // contenu périmé après navigation / changement de calques
             const days = visibleDays();
             const events = collectEvents(days);
 
@@ -758,12 +842,16 @@
                     <span>${ev.title}</span>
                     <span>${ev.where}</span>
                     <span>${formatTime(ev.s)}-${formatTime(ev.e)}</span>`;
+                makeOpenable(el, `${ev.code} ${ev.title}, ${formatTime(ev.s)}-${formatTime(ev.e)}`,
+                    () => openDetails(new Date(`${ev.iso}T00:00`), [ev], el));
                 columns.get(ev.iso).appendChild(el);
             });
         }
 
         // Vue mois : une case par jour, avec les premières séances et le nombre de séances restantes
         function renderMonth(days, events) {
+            // Téléphone : les séances deviennent de petits points (CSS), elles tiennent toutes
+            const maxChips = window.matchMedia('(max-width: 640px)').matches ? Infinity : MONTH_MAX_CHIPS;
             monthView.style.setProperty('--weeks', days.length / 7);
             monthView.innerHTML = '';
 
@@ -782,7 +870,7 @@
                 cell.className = `tt-month-day${date.getMonth() !== cursor.getMonth() ? ' is-outside' : ''}`;
                 cell.innerHTML = `<span class="tt-month-num">${date.getDate()}</span>`;
 
-                dayEvents.slice(0, MONTH_MAX_CHIPS).forEach((ev) => {
+                dayEvents.slice(0, maxChips).forEach((ev) => {
                     const chip = document.createElement('div');
                     chip.className = `tt-chip tt-event--${ev.type}`;
                     chip.title = eventTooltip(ev);
@@ -793,15 +881,17 @@
                     cell.appendChild(chip);
                 });
 
-                if (dayEvents.length > MONTH_MAX_CHIPS) {
+                if (dayEvents.length > maxChips) {
                     const more = document.createElement('span');
                     more.className = 'tt-month-more';
-                    const hidden = dayEvents.length - MONTH_MAX_CHIPS;
+                    const hidden = dayEvents.length - maxChips;
                     more.textContent = t(hidden === 1 ? 'moreEvent' : 'moreEvents', { n: hidden });
-                    more.title = dayEvents.slice(MONTH_MAX_CHIPS).map(eventTooltip).join('\n\n');
+                    more.title = dayEvents.slice(maxChips).map(eventTooltip).join('\n\n');
                     cell.appendChild(more);
                 }
 
+                makeOpenable(cell, `${formatPart(date, { weekday: 'long', day: 'numeric', month: 'long' })}, ${t('eventCount', { n: dayEvents.length })}`,
+                    () => openDetails(date, dayEvents, cell));
                 monthView.appendChild(cell);
             });
         }
@@ -814,10 +904,19 @@
             const params = new URLSearchParams(window.location.search);
             const ids = params.getAll('id');
             layers = timetables.filter(tt => ids.includes(tt.id));
-            if (VIEWS.includes(params.get('view'))) view = params.get('view');
+            if (VIEWS.includes(params.get('view'))) {
+                view = params.get('view');
+            } else if (window.matchMedia('(max-width: 640px)').matches) {
+                view = 'day';  // téléphone : 7 colonnes sont trop étroites pour tout afficher
+            }
             const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date')) && new Date(`${params.get('date')}T00:00`);
             if (date && !isNaN(date)) cursor = date;
             update();
+        });
+
+        // Passage ordinateur <-> téléphone (rotation, fenêtre redimensionnée) : la vue mois change de forme
+        window.matchMedia('(max-width: 640px)').addEventListener('change', () => {
+            if (view === 'month') renderCalendar();
         });
 
         /* Paramètres (settings.js) : langue / thème. Changer de langue retraduit les textes générés */
